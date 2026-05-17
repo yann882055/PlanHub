@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec.bak
+
+# PyInstaller
+dist/
+build/
+*.spec.log
+
+# Licence (ne jamais publier les clés réelles)
+planhub.lic
+*.lic
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Données utilisateur
+*.planhub
+saved_projects/
+
+# Environnements virtuels
+venv/
+env/
+.env/
+.venv/
+
+# Cache
+.cache/
+*.cache

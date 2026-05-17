@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "resources": [
+    {"code":"RES_001","name":"Chef de projet","name_en":"Project Manager","type":"LABOR","unit":"J","cost_fcfa":75000,"cost_usd":122,"cost_eur":114},
+    {"code":"RES_002","name":"Chef de chantier","name_en":"Site Manager","type":"LABOR","unit":"J","cost_fcfa":50000,"cost_usd":82,"cost_eur":76},
+    {"code":"RES_003","name":"Ingénieur génie civil","name_en":"Civil Engineer","type":"LABOR","unit":"J","cost_fcfa":60000,"cost_usd":98,"cost_eur":91},
+    {"code":"RES_004","name":"Topographe","name_en":"Surveyor","type":"LABOR","unit":"J","cost_fcfa":40000,"cost_usd":65,"cost_eur":61},
+    {"code":"RES_005","name":"Contrôleur qualité","name_en":"QC Inspector","type":"LABOR","unit":"J","cost_fcfa":35000,"cost_usd":57,"cost_eur":53},
+    {"code":"RES_006","name":"Maçon","name_en":"Mason","type":"LABOR","unit":"J","cost_fcfa":15000,"cost_usd":24,"cost_eur":23},
+    {"code":"RES_007","name":"Coffreur","name_en":"Formwork Carpenter","type":"LABOR","unit":"J","cost_fcfa":12000,"cost_usd":20,"cost_eur":18},
+    {"code":"RES_008","name":"Ferrailleur","name_en":"Iron Worker","type":"LABOR","unit":"J","cost_fcfa":13000,"cost_usd":21,"cost_eur":20},
+    {"code":"RES_009","name":"Conducteur d'engin (bulldozer)","name_en":"Bulldozer Operator","type":"LABOR","unit":"H","cost_fcfa":8000,"cost_usd":13,"cost_eur":12},
+    {"code":"RES_010","name":"Conducteur d'engin (pelle)","name_en":"Excavator Operator","type":"LABOR","unit":"H","cost_fcfa":8000,"cost_usd":13,"cost_eur":12},
+    {"code":"RES_011","name":"Conducteur camion benne","name_en":"Dump Truck Driver","type":"LABOR","unit":"H","cost_fcfa":5000,"cost_usd":8,"cost_eur":8},
+    {"code":"RES_012","name":"Manœuvre","name_en":"Laborer","type":"LABOR","unit":"J","cost_fcfa":5000,"cost_usd":8,"cost_eur":8},
+    {"code":"RES_013","name":"Électricien","name_en":"Electrician","type":"LABOR","unit":"J","cost_fcfa":18000,"cost_usd":30,"cost_eur":27},
+    {"code":"RES_014","name":"Soudeur","name_en":"Welder","type":"LABOR","unit":"J","cost_fcfa":15000,"cost_usd":25,"cost_eur":23},
+    {"code":"RES_015","name":"Mécanicien","name_en":"Mechanic","type":"LABOR","unit":"J","cost_fcfa":15000,"cost_usd":25,"cost_eur":23},
+    {"code":"MAT_001","name":"Ciment CEM I","name_en":"Portland Cement CEM I","type":"MATERIAL","unit":"T","cost_fcfa":85000,"cost_usd":139,"cost_eur":130},
+    {"code":"MAT_002","name":"Acier HA","name_en":"Rebar Steel HA","type":"MATERIAL","unit":"T","cost_fcfa":650000,"cost_usd":1065,"cost_eur":991},
+    {"code":"MAT_003","name":"Gravier 0/31,5","name_en":"Gravel 0/31.5","type":"MATERIAL","unit":"m³","cost_fcfa":12000,"cost_usd":20,"cost_eur":18},
+    {"code":"MAT_004","name":"Sable","name_en":"Sand","type":"MATERIAL","unit":"m³","cost_fcfa":8000,"cost_usd":13,"cost_eur":12},
+    {"code":"MAT_005","name":"Béton B25","name_en":"Concrete B25","type":"MATERIAL","unit":"m³","cost_fcfa":120000,"cost_usd":197,"cost_eur":183},
+    {"code":"MAT_006","name":"Coffrages bois","name_en":"Timber Formwork","type":"MATERIAL","unit":"m²","cost_fcfa":15000,"cost_usd":25,"cost_eur":23},
+    {"code":"MAT_007","name":"Carburant gasoil","name_en":"Diesel Fuel","type":"MATERIAL","unit":"L","cost_fcfa":800,"cost_usd":1,"cost_eur":1},
+    {"code":"MAT_008","name":"Explosifs","name_en":"Explosives","type":"MATERIAL","unit":"kg","cost_fcfa":5000,"cost_usd":8,"cost_eur":8},
+    {"code":"MAT_009","name":"Géotextile","name_en":"Geotextile","type":"MATERIAL","unit":"m²","cost_fcfa":3000,"cost_usd":5,"cost_eur":5},
+    {"code":"MAT_010","name":"Béton bitumineux","name_en":"Bituminous Concrete","type":"MATERIAL","unit":"T","cost_fcfa":95000,"cost_usd":156,"cost_eur":145}
+  ]
+}

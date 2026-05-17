@@ -1,0 +1,90 @@
+name: Build PlanHub.exe (Windows)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:   # Permet de lancer manuellement depuis GitHub
+
+jobs:
+  build-windows:
+    name: Compiler PlanHub.exe
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Récupérer le code
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      # ── 2. Installer Python 3.11
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ── 3. Installer les dépendances
+      - name: Installer les dépendances Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install customtkinter>=5.2.0
+          pip install Pillow>=10.0.0
+          pip install matplotlib>=3.7.0
+          pip install pandas>=2.0.0
+          pip install openpyxl>=3.1.0
+          pip install reportlab>=4.0.0
+          pip install pyinstaller>=6.0.0
+
+      # ── 4. Compiler avec PyInstaller (fichier .spec)
+      - name: Compiler PlanHub.exe
+        run: |
+          pyinstaller PlanHub.spec
+
+      # ── 5. Vérifier que l'exe a bien été créé
+      - name: Vérifier l'exécutable
+        run: |
+          if (Test-Path "dist\PlanHub.exe") {
+            Write-Host "✅ PlanHub.exe créé avec succès !"
+            $size = (Get-Item "dist\PlanHub.exe").Length / 1MB
+            Write-Host "   Taille : $([math]::Round($size, 1)) Mo"
+          } else {
+            Write-Host "❌ ECHEC : PlanHub.exe introuvable"
+            exit 1
+          }
+
+      # ── 6. Uploader l'exe comme artefact (toujours disponible)
+      - name: Uploader PlanHub.exe (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlanHub-Windows-exe
+          path: dist/PlanHub.exe
+          retention-days: 30
+
+      # ── 7. Créer une Release GitHub si c'est un tag vX.X.X
+      - name: Créer une Release GitHub
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PlanHub ${{ github.ref_name }}
+          body: |
+            ## PlanHub ${{ github.ref_name }}
+            **Du DQE à Primavera P6 en quelques clics**
+
+            ### Téléchargement
+            ⬇️ Téléchargez `PlanHub.exe` ci-dessous et lancez-le directement.
+
+            ### Clé de démonstration
+            ```
+            PLANHUB-DEMO-2024-XXXX
+            ```
+
+            ### Nouveautés
+            - Voir CHANGELOG.md
+          files: dist/PlanHub.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
