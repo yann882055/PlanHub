@@ -15,7 +15,6 @@ ctk_data = collect_data_files('customtkinter')
 added_files = [
     ('license_validator.py', '.'),
     ('data', 'data'),
-    ('assets', 'assets'),
 ] + ctk_data
 
 # ── Imports cachés nécessaires
