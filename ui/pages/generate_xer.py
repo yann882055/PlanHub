@@ -105,6 +105,9 @@ class GenerateXERPage(ctk.CTkFrame):
         self._build_section_checker()
         self._build_section_generate()
 
+        # Ouvrir directement l'onglet D (Génération XER) par défaut
+        self.nb.select(3)
+
     def _build_header(self):
         hdr = ctk.CTkFrame(self, fg_color="#1565C0", corner_radius=0)
         hdr.grid(row=0, column=0, sticky="ew")
@@ -708,4 +711,6 @@ class GenerateXERPage(ctk.CTkFrame):
         if hasattr(self, "_param_vars"):
             for key, var in self._param_vars.items():
                 var.set(str(ps.get(key, "") or ""))
+        # Toujours afficher l'onglet D (Génération XER)
+        self.nb.select(3)
         self.update_status("Page Génération XER rechargée")

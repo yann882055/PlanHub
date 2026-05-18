@@ -460,7 +460,7 @@ class ReportPage(ctk.CTkFrame):
                            border_width=1, border_color="#C5D3F0")
         imp.grid(row=0, column=0, sticky="ew", padx=16, pady=(12, 4))
         imp.columnconfigure(1, weight=1)
-        imp.columnconfigure(3, weight=1)
+        imp.columnconfigure(5, weight=1)
 
         # XER courant
         ctk.CTkLabel(imp, text="XER en cours :",
