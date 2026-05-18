@@ -7,7 +7,7 @@ on:
       - 'v*'
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:   # Permet de lancer manuellement depuis GitHub
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -38,12 +38,23 @@ jobs:
           pip install reportlab>=4.0.0
           pip install pyinstaller>=6.0.0
 
-      # ── 4. Compiler avec PyInstaller (fichier .spec)
+      # ── 4. Générer l'icône PlanHub (logo.ico)
+      - name: Générer assets/logo.ico
+        run: |
+          python assets/create_icon.py
+          if (Test-Path "assets/logo.ico") {
+            Write-Host "✅ logo.ico généré"
+          } else {
+            Write-Host "❌ logo.ico manquant — arrêt"
+            exit 1
+          }
+
+      # ── 5. Compiler avec PyInstaller (fichier .spec)
       - name: Compiler PlanHub.exe
         run: |
-          pyinstaller PlanHub.spec
+          pyinstaller PlanHub.spec --clean --noconfirm
 
-      # ── 5. Vérifier que l'exe a bien été créé
+      # ── 6. Vérifier que l'exe a bien été créé
       - name: Vérifier l'exécutable
         run: |
           if (Test-Path "dist\PlanHub.exe") {
@@ -55,7 +66,7 @@ jobs:
             exit 1
           }
 
-      # ── 6. Uploader l'exe comme artefact (toujours disponible)
+      # ── 7. Uploader l'exe comme artefact
       - name: Uploader PlanHub.exe (artefact)
         uses: actions/upload-artifact@v4
         with:
@@ -63,7 +74,7 @@ jobs:
           path: dist/PlanHub.exe
           retention-days: 30
 
-      # ── 7. Créer une Release GitHub si c'est un tag vX.X.X
+      # ── 8. Créer une Release GitHub si tag vX.X.X
       - name: Créer une Release GitHub
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -76,12 +87,7 @@ jobs:
             ### Téléchargement
             ⬇️ Téléchargez `PlanHub.exe` ci-dessous et lancez-le directement.
 
-            ### Clé de démonstration
-            ```
-            PLANHUB-DEMO-2024-XXXX
-            ```
-
-            ### Nouveautés
+            ### Notes de version
             - Voir CHANGELOG.md
           files: dist/PlanHub.exe
           draft: false

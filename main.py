@@ -42,10 +42,12 @@ def create_desktop_shortcut():
             return  # Déjà créé
 
         # Création via PowerShell WScript.Shell (aucune dépendance externe)
+        # IconLocation = l'exe lui-même (icône embarquée index 0)
         ps_cmd = (
             f'$s = (New-Object -COM WScript.Shell).CreateShortcut("{shortcut_path}");'
             f'$s.TargetPath = "{exe_path}";'
             f'$s.WorkingDirectory = "{work_dir}";'
+            f'$s.IconLocation = "{exe_path}, 0";'
             f'$s.Description = "PlanHub v1.0 - Du DQE a Primavera P6";'
             f'$s.Save()'
         )
