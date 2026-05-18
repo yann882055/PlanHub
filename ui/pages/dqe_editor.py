@@ -14,26 +14,22 @@ except ImportError:
     HAS_OPENPYXL = False
 
 
-# Colonnes du tableau DQE
+# Colonnes du tableau DQE (calendrier et contrainte gérés en interne, pas affichés)
 DQE_COLUMNS = [
     ("activity_id", "N°",          60,  "center"),
     ("wbs",         "WBS",         90,  "center"),
     ("lot",         "LOT",         90,  "center"),
-    ("designation", "DÉSIGNATION", 240, "w"),
+    ("designation", "DÉSIGNATION", 260, "w"),
     ("unite",       "UNITÉ",       80,  "center"),
     ("quantite",    "QUANTITÉ",    90,  "e"),
     ("pu_ht",       "PU HT",       110, "e"),
     ("montant_ht",  "MONTANT HT",  120, "e"),
     ("duree",       "DURÉE (j)",   90,  "center"),
-    ("calendrier",  "CALENDRIER",  100, "center"),
     ("task_type",   "TYPE",        90,  "center"),
-    ("constraint",  "CONTRAINTE",  100, "center"),
 ]
 
 UNITES = ["m³", "m²", "ml", "forfait", "kg", "T", "U", "h", "j"]
 TASK_TYPES = ["TT_Task", "TT_Mile", "TT_FinMile", "TT_LOE", "TT_WBS"]
-CALENDRIERS = ["Cal_5j", "Cal_6j", "Cal_7j"]
-CONTRAINTES = ["CS_ALAP", "CS_ASAP", "CS_MSO", "CS_MFO", "CS_FNET", "CS_FNLT", "CS_SNET", "CS_SNLT"]
 DEVISES = ["FCFA", "XOF", "USD", "EUR"]
 
 
@@ -310,8 +306,6 @@ class DQEEditorPage(ctk.CTkFrame):
         choice_cols = {
             "unite": UNITES,
             "task_type": TASK_TYPES,
-            "calendrier": CALENDRIERS,
-            "constraint": CONTRAINTES,
         }
 
         bbox = self.tv.bbox(item, col_id)
@@ -736,3 +730,4 @@ class DQEEditorPage(ctk.CTkFrame):
         self.currency_var.set(self.project_state.get("currency", "FCFA"))
         self._reload_table()
         self.update_status("Éditeur DQE rechargé")
+                                                                                                                                                                                                                                                                         

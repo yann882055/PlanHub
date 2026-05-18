@@ -27,15 +27,30 @@ except ImportError:
             return {"tasks": self.tasks, "critical": []}
 
 try:
-    from core.xer_generator import XERGenerator
+    from core.xer_generator import XERGenerator, encode_xer
 except ImportError:
+    def encode_xer(content):
+        return content.encode("utf-8", errors="replace")
     class XERGenerator:
-        def __init__(self, project_state):
-            self.project_state = project_state
-        def generate(self):
-            return "-- XER simulé --\nTASK\tA0001\tExemple\n"
-        def get_stats(self):
-            return {"nb_wbs": 1, "nb_tasks": len(self.project_state.get("dqe_tasks", [])), "nb_resources": 0}
+        def __init__(self):
+            pass
+        def generate(self, project, tasks, resources, task_resources, calendar="5j", p6_version="15.1"):
+            lines = [f"ERMHDR\t{p6_version}\t2024-01-01\tProject\tADMIN\tSYSTEM\tPlanHub\t\t"]
+            lines.append("%T\tTASK\n%F\ttask_id\ttask_code\ttask_name")
+            for i, t in enumerate(tasks):
+                lines.append(f"%R\t{i+1}\t{t.get('activity_id','A'+str(i))}\t{t.get('designation','Tâche')}")
+            lines.append("%E")
+            return "\n".join(lines)
+
+
+# Mapping version P6 label → string numérique
+P6_VERSION_MAP = {
+    "Primavera P6 v8":   "8.2",
+    "Primavera P6 v15":  "15.1",
+    "Primavera P6 v19":  "19.12",
+    "Primavera P6 v20":  "20.12",
+    "Primavera P6 v21+": "21.12",
+}
 
 
 P6_VERSIONS = ["Primavera P6 v8", "Primavera P6 v15", "Primavera P6 v19",
@@ -591,66 +606,57 @@ class GenerateXERPage(ctk.CTkFrame):
             messagebox.showerror("Erreur", "Le DQE est vide. Ajoutez des tâches avant de générer le XER.")
             return
 
-        self._log(f"✓ Projet : {ps.get('name', '—')}", "ok")
-        self._log(f"✓ ID     : {ps.get('proj_id', '—')}", "ok")
-        self._log(f"✓ {len(tasks)} tâche(s) à exporter", "info")
-        self._log(f"✓ {len(ps.get('resources', []))} ressource(s)", "info")
+        self._log(f"✓ Projet   : {ps.get('name', '—')}", "ok")
+        self._log(f"✓ ID       : {ps.get('proj_id', '—')}", "ok")
+        self._log(f"✓ {len(tasks)} tâche(s) importées du DQE", "info")
+        resources = ps.get("resources", [])
+        task_resources = ps.get("task_resources", [])
+        self._log(f"✓ {len(resources)} ressource(s)", "info")
+
+        # Calendrier
+        cal_raw = ps.get("calendar", "5j")
+        calendar = "6j" if "6j" in str(cal_raw) else "5j"
+
+        # Version P6
+        p6_label = ps.get("p6_version", "Primavera P6 v15")
+        p6_version = P6_VERSION_MAP.get(p6_label, "15.1")
+
+        # Construction du dict projet
+        project = {
+            "proj_id":    ps.get("proj_id", "PROJ001") or "PROJ001",
+            "name":       ps.get("name", "Projet PlanHub") or "Projet PlanHub",
+            "start_date": ps.get("start_date", ""),
+            "currency":   ps.get("currency", "FCFA"),
+            "tasks":      tasks,
+        }
 
         try:
-            gen = XERGenerator(ps)
-            self._xer_content = gen.generate()
-            stats = gen.get_stats()
+            gen = XERGenerator()
+            content = gen.generate(
+                project=project,
+                tasks=tasks,
+                resources=resources,
+                task_resources=task_resources,
+                calendar=calendar,
+                p6_version=p6_version,
+            )
+            self._xer_content = content
 
-            self._log(f"✓ Sections WBS   : {stats.get('nb_wbs', '—')}", "ok")
-            self._log(f"✓ Tâches générées: {stats.get('nb_tasks', '—')}", "ok")
-            self._log(f"✓ Ressources     : {stats.get('nb_resources', '—')}", "ok")
+            # Statistiques
+            nb_tasks_xer = len([t for t in tasks if t.get("task_type") != "TT_WBS"])
+            wbs_codes = set(
+                t.get("wbs", t.get("wbs_code", ""))
+                for t in tasks if t.get("wbs", t.get("wbs_code", ""))
+            )
+            nb_wbs = len(wbs_codes)
+
+            self._log(f"✓ WBS exportés   : {nb_wbs}", "ok")
+            self._log(f"✓ Tâches générées: {nb_tasks_xer}", "ok")
+            self._log(f"✓ Ressources     : {len(resources)}", "ok")
+            self._log(f"✓ Calendrier     : Cal_{calendar}", "ok")
+            self._log(f"✓ Version P6     : {p6_version}", "ok")
+            self._log(f"✓ Encodage       : latin-1 (standard P6)", "ok")
             self._log("✓ Fichier XER généré avec succès !", "ok")
             self._log("=" * 60, "head")
 
-            self.stats_var.set(
-                f"WBS : {stats.get('nb_wbs', '—')}  |  Tâches : {stats.get('nb_tasks', '—')}  |"
-                f"  Ressources : {stats.get('nb_resources', '—')}"
-            )
-            self.update_status("XER généré avec succès — prêt au téléchargement")
-
-        except Exception as ex:
-            self._log(f"❌ Erreur : {ex}", "err")
-            messagebox.showerror("Erreur de génération", str(ex))
-
-    def _download_xer(self):
-        if not self._xer_content:
-            messagebox.showwarning("XER non généré", "Veuillez d'abord générer le fichier XER.")
-            return
-
-        proj_name = self.project_state.get("name", "projet").replace(" ", "_")
-        default_name = f"{proj_name}_{datetime.now().strftime('%Y%m%d_%H%M')}.xer"
-
-        path = filedialog.asksaveasfilename(
-            title="Enregistrer le fichier XER",
-            defaultextension=".xer",
-            filetypes=[("Fichiers XER", "*.xer"), ("Tous les fichiers", "*.*")],
-            initialfile=default_name
-        )
-        if not path:
-            return
-
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(self._xer_content)
-            self._log(f"✓ Fichier téléchargé : {path}", "ok")
-            messagebox.showinfo("Succès", f"Fichier XER enregistré :\n{path}")
-            self.update_status(f"XER téléchargé : {path}")
-        except Exception as ex:
-            messagebox.showerror("Erreur d'enregistrement", str(ex))
-
-    # ------------------------------------------------------------------
-
-    def refresh(self):
-        # Recharger tableau rétro-planning
-        self._reload_retro_table(None)
-        # Mettre à jour paramètres
-        ps = self.project_state
-        if hasattr(self, "_param_vars"):
-            for key, var in self._param_vars.items():
-                var.set(str(ps.get(key, "") or ""))
-        self.update_status("Page Génération XER rechargée")
+            self.stats_var.se

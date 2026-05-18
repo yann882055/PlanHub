@@ -196,15 +196,16 @@ class ProjectTypePage(ctk.CTkFrame):
             messagebox.showwarning("Sélection", "Veuillez sélectionner un type de projet.")
             return
         self.project_state["project_type"] = self._selected_type
-        self.update_status(f"Type de projet validé : {self._selected_type}")
-        messagebox.showinfo("Type validé",
-                            f"Type de projet défini : {self._selected_type}\n\nVous pouvez maintenant charger la bibliothèque de tâches.")
-        self.navigate("library")
 
-    def refresh(self):
-        self._selected_type = self.project_state.get("project_type", "")
-        if self._selected_type and self._selected_type in self._type_buttons:
-            self._highlight(self._selected_type)
-            self._update_description(self._selected_type)
-            self.validate_btn.configure(state="normal")
-        self.update_status("Page Type de projet rechargée")
+        # Charger les ressources par défaut selon le type (sans écraser les existantes)
+        existing_codes = {r.get("code") for r in self.project_state.get("resources", [])}
+        defaults = DEFAULT_RESOURCES.get(self._selected_type, DEFAULT_RESOURCES.get("_generic", []))
+        added = 0
+        for res in defaults:
+            if res["code"] not in existing_codes:
+                self.project_state.setdefault("resources", []).append(dict(res))
+                existing_codes.add(res["code"])
+                added += 1
+
+        self.update_status(f"Type validé : {self._selected_type} — {added} ressource(s) par défaut chargée(s)")
+        info_msg = f"Type de projet : {self

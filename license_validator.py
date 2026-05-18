@@ -23,6 +23,34 @@ def _get_app_dir() -> str:
 LICENSE_FILE = os.path.join(_get_app_dir(), "planhub.lic")
 DEMO_KEY = "PLANHUB-DEMO-2024-XXXX"
 
+# ── Global licence courante (lu par MainWindow pour la status bar) ────
+CURRENT_LICENSE = {
+    "client": "Démo",
+    "type": "DEMO",
+    "valid": False,
+    "expiry": "",
+}
+
+
+def _extract_client_name(dat_basename: str) -> str:
+    """
+    Extrait le nom client depuis le nom du fichier .dat.
+    Exemples :
+      licence_YANN_PlanHub.dat  →  YANN
+      YANN.dat                  →  YANN
+      DamFinder.dat             →  DamFinder
+      licence_EDF_PlanHub.dat   →  EDF
+    """
+    stem = os.path.splitext(dat_basename)[0]
+    parts = stem.split("_")
+    if len(parts) >= 3 and parts[0].lower() in ("licence", "license"):
+        # licence_CLIENT_PRODUCT → CLIENT (tout entre premier et dernier underscore)
+        return "_".join(parts[1:-1])
+    elif len(parts) == 2 and parts[0].lower() in ("licence", "license"):
+        return parts[1]
+    else:
+        return stem  # nom brut
+
 
 class LicenseValidator:
     def __init__(self):
@@ -40,7 +68,7 @@ class LicenseValidator:
                 with open(dat_file, "r", encoding="utf-8", errors="ignore") as f:
                     first_line = f.readline().strip()
                 if first_line == "LFORGE20":
-                    name = os.path.splitext(os.path.basename(dat_file))[0]
+                    name = _extract_client_name(os.path.basename(dat_file))
                     return {
                         "client": name,
                         "expiry": "2099-12-31",
@@ -56,7 +84,9 @@ class LicenseValidator:
             return None
         try:
             with open(LICENSE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Ignorer le .lic si un .dat est présent (priorité .dat)
+            return data
         except Exception:
             return None
 
@@ -73,25 +103,60 @@ class LicenseValidator:
 
     # ── Point d'entrée principal ──────────────────────────────────────
     def check_and_show(self):
-        # 1. Fichier .dat (LFORGE20) — licence complète
+        global CURRENT_LICENSE
+
+        # 1. Fichier .dat (LFORGE20) — licence complète, priorité maximale
         dat = self._find_dat_license()
         if dat:
             self.valid = True
             self.client = dat["client"]
             self.expiry = datetime.date.fromisoformat(dat["expiry"])
             self.license_type = dat["type"]
+            # Sauvegarder dans .lic pour que la status bar survive aux sessions
+            self._save_license({
+                "client": self.client,
+                "expiry": dat["expiry"],
+                "type": "FULL",
+                "source": "dat",
+            })
+            CURRENT_LICENSE = {
+                "client": self.client,
+                "type": "FULL",
+                "valid": True,
+                "expiry": dat["expiry"],
+            }
             return
 
         # 2. Fichier JSON .lic
         data = self._load_license_file()
         if data:
             try:
+                # Si le .lic provient d'un .dat → licence complète sans expiry check
+                if data.get("source") == "dat":
+                    self.valid = True
+                    self.client = data.get("client", "Client")
+                    self.expiry = datetime.date.fromisoformat(data.get("expiry", "2099-12-31"))
+                    self.license_type = "FULL"
+                    CURRENT_LICENSE = {
+                        "client": self.client,
+                        "type": "FULL",
+                        "valid": True,
+                        "expiry": data.get("expiry", "2099-12-31"),
+                    }
+                    return
+
                 expiry = datetime.date.fromisoformat(data.get("expiry", ""))
                 if expiry >= datetime.date.today():
                     self.valid = True
                     self.client = data.get("client", "Client")
                     self.expiry = expiry
                     self.license_type = data.get("type", "FULL")
+                    CURRENT_LICENSE = {
+                        "client": self.client,
+                        "type": self.license_type,
+                        "valid": True,
+                        "expiry": data.get("expiry", ""),
+                    }
                     return
                 else:
                     self._show_expired_dialog(data.get("client", ""), expiry)
@@ -104,6 +169,7 @@ class LicenseValidator:
 
     # ── Dialogues Tkinter (utilisent wait_window, pas mainloop) ───────
     def _show_expired_dialog(self, client, expiry):
+        global CURRENT_LICENSE
         root = tk.Tk()
         root.withdraw()
         msg = (
@@ -117,9 +183,16 @@ class LicenseValidator:
         self.client = f"{client} (Expiré)"
         self.expiry = datetime.date.today() + datetime.timedelta(days=30)
         self.license_type = "DEMO"
+        CURRENT_LICENSE = {
+            "client": self.client,
+            "type": "DEMO",
+            "valid": True,
+            "expiry": self.expiry.isoformat(),
+        }
         self._save_demo()
 
     def _show_activation_dialog(self):
+        global CURRENT_LICENSE
         root = tk.Tk()
         root.withdraw()
 
@@ -166,6 +239,10 @@ class LicenseValidator:
                 self.client = data["client"]
                 self.expiry = datetime.date.fromisoformat(data["expiry"])
                 self.license_type = data["type"]
+                CURRENT_LICENSE["client"] = self.client
+                CURRENT_LICENSE["type"] = self.license_type
+                CURRENT_LICENSE["valid"] = True
+                CURRENT_LICENSE["expiry"] = data["expiry"]
                 activated[0] = True
                 dialog.destroy()
             else:
@@ -188,7 +265,6 @@ class LicenseValidator:
 
         dialog.protocol("WM_DELETE_WINDOW", quit_app)
 
-        # wait_window au lieu de mainloop → évite la corruption de l'état Tk
         root.wait_window(dialog)
         root.destroy()
 

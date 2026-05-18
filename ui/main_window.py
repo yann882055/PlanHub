@@ -13,11 +13,15 @@ from ui.sidebar import Sidebar
 from ui.pages.dashboard import DashboardPage
 from ui.pages.dqe_editor import DQEEditorPage
 from ui.pages.project_type import ProjectTypePage
-from ui.pages.library import LibraryPage
 from ui.pages.resources import ResourcesPage
 from ui.pages.generate_xer import GenerateXERPage
 from ui.pages.report import ReportPage
 from ui.pages.projects import ProjectsPage
+
+try:
+    from license_validator import CURRENT_LICENSE
+except Exception:
+    CURRENT_LICENSE = {"client": "Démo", "type": "DEMO", "valid": False, "expiry": ""}
 
 
 class MainWindow(ctk.CTk):
@@ -185,11 +189,20 @@ class MainWindow(ctk.CTk):
         statusbar.pack(fill="x", side="bottom")
         statusbar.pack_propagate(False)
 
-        # Statut licence
+        # Statut licence (lu depuis CURRENT_LICENSE)
+        lic_type = CURRENT_LICENSE.get("type", "DEMO")
+        lic_client = CURRENT_LICENSE.get("client", "Démo")
+        if lic_type == "FULL":
+            lic_icon = "✓ Licence FULL"
+            lic_color = "#A5D6A7"
+        else:
+            lic_icon = "⚠ Mode DÉMO"
+            lic_color = "#FFD54F"
+
         self.status_license = ctk.CTkLabel(
-            statusbar, text="✓ Licence active",
+            statusbar, text=lic_icon,
             font=ctk.CTkFont("Segoe UI", 10),
-            text_color="white",
+            text_color=lic_color,
         )
         self.status_license.pack(side="left", padx=16, pady=4)
 
@@ -199,7 +212,7 @@ class MainWindow(ctk.CTk):
 
         # Client
         self.status_client = ctk.CTkLabel(
-            statusbar, text="Client : Démo",
+            statusbar, text=f"Client : {lic_client}",
             font=ctk.CTkFont("Segoe UI", 10),
             text_color="white",
         )
@@ -255,7 +268,6 @@ class MainWindow(ctk.CTk):
             "dashboard": DashboardPage,
             "dqe_editor": DQEEditorPage,
             "project_type": ProjectTypePage,
-            "library": LibraryPage,
             "resources": ResourcesPage,
             "generate_xer": GenerateXERPage,
             "report": ReportPage,
@@ -365,17 +377,4 @@ class MainWindow(ctk.CTk):
     # DÉPLACEMENT FENÊTRE
     # ─────────────────────────────────────────────────────────────────
     def _start_move(self, event):
-        self._move_x = event.x
-        self._move_y = event.y
-
-    def _do_move(self, event):
-        x = self.winfo_x() + event.x - self._move_x
-        y = self.winfo_y() + event.y - self._move_y
-        self.geometry(f"+{x}+{y}")
-
-    def _toggle_maximize(self):
-        """Bascule maximisé/restauré."""
-        if self.state() == "zoomed":
-            self.state("normal")
-        else:
-            self.state("zoomed")
+    
