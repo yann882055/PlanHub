@@ -1,20 +1,26 @@
 """
 license_validator.py — PlanHub v1.0
 Système de validation de licence.
-REMPLACER ce fichier par votre vrai validateur de licence.
+Accepte les fichiers .dat (format LFORGE20) et les clés JSON.
 """
 
 import os
 import sys
 import json
-import hashlib
+import glob
 import datetime
 import tkinter as tk
 from tkinter import messagebox
 
 
-LICENSE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "planhub.lic")
-# Clé de démonstration — à remplacer par votre propre système
+def _get_app_dir() -> str:
+    """Dossier de l'exécutable (ou du script en développement)."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+LICENSE_FILE = os.path.join(_get_app_dir(), "planhub.lic")
 DEMO_KEY = "PLANHUB-DEMO-2024-XXXX"
 
 
@@ -25,9 +31,26 @@ class LicenseValidator:
         self.expiry = None
         self.license_type = "DEMO"
 
-    def _hash_key(self, key: str) -> str:
-        return hashlib.sha256(key.encode()).hexdigest()
+    # ── Recherche fichier .dat (LFORGE20) ────────────────────────────
+    def _find_dat_license(self):
+        """Cherche un fichier .dat LFORGE20 dans le dossier de l'application."""
+        app_dir = _get_app_dir()
+        for dat_file in glob.glob(os.path.join(app_dir, "*.dat")):
+            try:
+                with open(dat_file, "r", encoding="utf-8", errors="ignore") as f:
+                    first_line = f.readline().strip()
+                if first_line == "LFORGE20":
+                    name = os.path.splitext(os.path.basename(dat_file))[0]
+                    return {
+                        "client": name,
+                        "expiry": "2099-12-31",
+                        "type": "FULL",
+                    }
+            except Exception:
+                continue
+        return None
 
+    # ── Fichier JSON .lic ─────────────────────────────────────────────
     def _load_license_file(self):
         if not os.path.exists(LICENSE_FILE):
             return None
@@ -38,26 +61,30 @@ class LicenseValidator:
             return None
 
     def _validate_key(self, key: str) -> dict:
-        """Valide une clé de licence. Retourne les infos ou None si invalide."""
-        # Clé démo toujours valide
         if key.strip().upper() == DEMO_KEY:
             expiry = datetime.date.today() + datetime.timedelta(days=30)
             return {
                 "key": key,
                 "client": "Utilisateur Démo",
                 "expiry": expiry.isoformat(),
-                "type": "DEMO"
+                "type": "DEMO",
             }
-        # Logique de validation personnalisée à implémenter
-        # Exemple : vérification serveur, hash, etc.
         return None
 
+    # ── Point d'entrée principal ──────────────────────────────────────
     def check_and_show(self):
-        """Point d'entrée principal — appelé avant tout affichage."""
-        data = self._load_license_file()
+        # 1. Fichier .dat (LFORGE20) — licence complète
+        dat = self._find_dat_license()
+        if dat:
+            self.valid = True
+            self.client = dat["client"]
+            self.expiry = datetime.date.fromisoformat(dat["expiry"])
+            self.license_type = dat["type"]
+            return
 
+        # 2. Fichier JSON .lic
+        data = self._load_license_file()
         if data:
-            # Vérifier expiration
             try:
                 expiry = datetime.date.fromisoformat(data.get("expiry", ""))
                 if expiry >= datetime.date.today():
@@ -65,26 +92,27 @@ class LicenseValidator:
                     self.client = data.get("client", "Client")
                     self.expiry = expiry
                     self.license_type = data.get("type", "FULL")
-                    return  # Licence valide, on continue
+                    return
                 else:
                     self._show_expired_dialog(data.get("client", ""), expiry)
+                    return
             except Exception:
                 pass
 
-        # Pas de licence valide — afficher dialogue d'activation
+        # 3. Pas de licence — dialogue d'activation
         self._show_activation_dialog()
 
+    # ── Dialogues Tkinter (utilisent wait_window, pas mainloop) ───────
     def _show_expired_dialog(self, client, expiry):
         root = tk.Tk()
         root.withdraw()
         msg = (
             f"La licence PlanHub de {client} a expiré le {expiry.strftime('%d/%m/%Y')}.\n\n"
-            "Contactez votre revendeur pour renouveler votre licence.\n\n"
-            "Le logiciel va continuer en mode DÉMO (30 jours)."
+            "Copiez votre fichier .dat dans le dossier du logiciel, ou contactez votre revendeur.\n\n"
+            "Le logiciel continue en mode DÉMO (30 jours)."
         )
         messagebox.showwarning("Licence expirée — PlanHub", msg, parent=root)
         root.destroy()
-        # Continuer en mode démo
         self.valid = True
         self.client = f"{client} (Expiré)"
         self.expiry = datetime.date.today() + datetime.timedelta(days=30)
@@ -94,38 +122,38 @@ class LicenseValidator:
     def _show_activation_dialog(self):
         root = tk.Tk()
         root.withdraw()
-        root.title("Activation PlanHub")
 
         dialog = tk.Toplevel(root)
         dialog.title("Activation PlanHub v1.0")
-        dialog.geometry("480x280")
+        dialog.geometry("500x310")
         dialog.resizable(False, False)
         dialog.configure(bg="#FFFFFF")
         dialog.grab_set()
 
-        # Centrer
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() - 480) // 2
-        y = (dialog.winfo_screenheight() - 280) // 2
+        x = (dialog.winfo_screenwidth() - 500) // 2
+        y = (dialog.winfo_screenheight() - 310) // 2
         dialog.geometry(f"+{x}+{y}")
 
         tk.Label(dialog, text="🔑 Activation PlanHub v1.0",
-                 font=("Segoe UI", 14, "bold"), bg="#FFFFFF", fg="#1565C0").pack(pady=(20, 5))
-        tk.Label(dialog, text="Entrez votre clé de licence ou utilisez la clé DÉMO :",
-                 font=("Segoe UI", 10), bg="#FFFFFF", fg="#616161").pack(pady=(0, 15))
+                 font=("Segoe UI", 14, "bold"), bg="#FFFFFF", fg="#1565C0").pack(pady=(20, 4))
+        tk.Label(dialog,
+                 text="Copiez votre fichier .dat dans le dossier du logiciel et relancez,",
+                 font=("Segoe UI", 9), bg="#FFFFFF", fg="#1565C0").pack()
+        tk.Label(dialog,
+                 text="ou entrez une clé ci-dessous (clé DÉMO gratuite disponible) :",
+                 font=("Segoe UI", 9), bg="#FFFFFF", fg="#616161").pack(pady=(0, 12))
 
         frame = tk.Frame(dialog, bg="#FFFFFF")
         frame.pack(padx=30, fill="x")
 
         key_var = tk.StringVar(value=DEMO_KEY)
-        entry = tk.Entry(frame, textvariable=key_var, font=("Segoe UI", 11),
-                         width=35, relief="solid", bd=1)
-        entry.pack(pady=5, ipady=6)
+        tk.Entry(frame, textvariable=key_var, font=("Segoe UI", 11),
+                 width=38, relief="solid", bd=1).pack(pady=5, ipady=6)
 
         msg_var = tk.StringVar()
-        msg_label = tk.Label(dialog, textvariable=msg_var,
-                              font=("Segoe UI", 9), bg="#FFFFFF", fg="#D32F2F")
-        msg_label.pack(pady=5)
+        tk.Label(dialog, textvariable=msg_var, font=("Segoe UI", 9),
+                 bg="#FFFFFF", fg="#D32F2F").pack(pady=4)
 
         activated = [False]
 
@@ -140,17 +168,14 @@ class LicenseValidator:
                 self.license_type = data["type"]
                 activated[0] = True
                 dialog.destroy()
-                root.destroy()
             else:
-                msg_var.set("❌ Clé invalide. Utilisez PLANHUB-DEMO-2024-XXXX pour la démo.")
+                msg_var.set("❌ Clé invalide. Essayez : PLANHUB-DEMO-2024-XXXX")
 
         def quit_app():
-            root.destroy()
-            sys.exit(0)
+            dialog.destroy()
 
         btn_frame = tk.Frame(dialog, bg="#FFFFFF")
-        btn_frame.pack(pady=10)
-
+        btn_frame.pack(pady=8)
         tk.Button(btn_frame, text="  Activer  ", command=activate,
                   bg="#1565C0", fg="white", font=("Segoe UI", 10, "bold"),
                   relief="flat", cursor="hand2", padx=10, pady=6).pack(side="left", padx=5)
@@ -159,14 +184,18 @@ class LicenseValidator:
                   relief="flat", cursor="hand2", padx=10, pady=6).pack(side="left", padx=5)
 
         tk.Label(dialog, text=f"Clé démo : {DEMO_KEY}",
-                 font=("Segoe UI", 8), bg="#FFFFFF", fg="#9E9E9E").pack(pady=(5, 0))
+                 font=("Segoe UI", 8), bg="#FFFFFF", fg="#9E9E9E").pack(pady=(4, 0))
 
         dialog.protocol("WM_DELETE_WINDOW", quit_app)
-        root.mainloop()
+
+        # wait_window au lieu de mainloop → évite la corruption de l'état Tk
+        root.wait_window(dialog)
+        root.destroy()
 
         if not activated[0]:
             sys.exit(0)
 
+    # ── Sauvegarde ────────────────────────────────────────────────────
     def _save_license(self, data: dict):
         try:
             with open(LICENSE_FILE, "w", encoding="utf-8") as f:
@@ -175,10 +204,9 @@ class LicenseValidator:
             pass
 
     def _save_demo(self):
-        data = {
+        self._save_license({
             "key": DEMO_KEY,
             "client": "Utilisateur Démo",
             "expiry": (datetime.date.today() + datetime.timedelta(days=30)).isoformat(),
-            "type": "DEMO"
-        }
-        self._save_license(data)
+            "type": "DEMO",
+        })
