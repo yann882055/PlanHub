@@ -67,14 +67,14 @@ LOG_COLORS   = {"ok": "#00E676", "warn": "#FFD740", "err": "#FF5252", "info": "#
 
 # ── Contraintes P6 ────────────────────────────────────────────────────────────
 CSTR_INFO = [
-    # (code,  libellé complet,                   fond,      texte)
-    ("ALAP", "Au plus tard — défaut ALAP",       "#E3F2FD", "#1565C0"),
-    ("FNLT", "Finish No Later Than  (FIN ≤ date)","#FFF3E0", "#E65100"),
-    ("MFO",  "Must Finish On  (FIN = date)",     "#FCE4EC", "#C62828"),
-    ("FNET", "Finish No Earlier Than (FIN ≥ date)","#E8F5E9","#2E7D32"),
-    ("SNLT", "Start No Later Than  (DÉB ≤ date)","#F3E5F5", "#6A1B9A"),
-    ("SNET", "Start No Earlier Than (DÉB ≥ date)","#E0F7FA","#00695C"),
-    ("MSOB", "Must Start On or Before (DÉB ≤ date)","#FFF8E1","#F57F17"),
+    # (code,  libellé en français,                              fond,      texte)
+    ("ALAP", "Au plus tard — aucune date requise (défaut)",    "#E3F2FD", "#1565C0"),
+    ("FNLT", "Fin au plus tard le [date] — FIN ≤ date",        "#FFF3E0", "#E65100"),
+    ("MFO",  "Fin impérative le [date] — FIN = date exacte",   "#FCE4EC", "#C62828"),
+    ("FNET", "Fin au plus tôt le [date] — FIN ≥ date",         "#E8F5E9", "#2E7D32"),
+    ("SNLT", "Début au plus tard le [date] — DÉB ≤ date",      "#F3E5F5", "#6A1B9A"),
+    ("SNET", "Début au plus tôt le [date] — DÉB ≥ date",       "#E0F7FA", "#00695C"),
+    ("MSOB", "Début au plus tard ou égal [date] — DÉB ≤ date", "#FFF8E1", "#F57F17"),
 ]
 CSTR_NEEDS_DATE = {"FNLT", "MFO", "FNET", "SNLT", "SNET", "MSOB"}
 CSTR_BG = {c: bg for c, _, bg, _ in CSTR_INFO}
