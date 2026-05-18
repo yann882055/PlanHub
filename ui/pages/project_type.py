@@ -208,4 +208,166 @@ class ProjectTypePage(ctk.CTkFrame):
                 added += 1
 
         self.update_status(f"Type validé : {self._selected_type} — {added} ressource(s) par défaut chargée(s)")
-        info_msg = f"Type de projet : {self
+        info_msg = f"Type de projet : {self._selected_type}\n"
+        if added > 0:
+            info_msg += f"\n{added} ressource(s) par défaut ajoutée(s) à la page Ressources.\n"
+            info_msg += "Vous pouvez les modifier dans la page Ressources."
+        else:
+            info_msg += "\nLes ressources existantes ont été conservées."
+        messagebox.showinfo("Type validé", info_msg)
+        self.navigate("resources")
+
+    def refresh(self):
+        self._selected_type = self.project_state.get("project_type", "")
+        if self._selected_type and self._selected_type in self._type_buttons:
+            self._highlight(self._selected_type)
+            self._update_description(self._selected_type)
+            self.validate_btn.configure(state="normal")
+        self.update_status("Page Type de projet rechargée")
+
+
+# ── Ressources par défaut par type de projet ──────────────────────────────────
+# Format : {code, name, type (LABOR|MATERIAL|EQUIPMENT), unit, cost_per_unit}
+# Les coûts sont indicatifs en FCFA/h ou FCFA/U — le planificateur les ajuste.
+
+_R = lambda code, name, rtype, unit, cost: {
+    "code": code, "name": name, "type": rtype, "unit": unit,
+    "cost_per_unit": cost, "quantity": 1
+}
+
+DEFAULT_RESOURCES = {
+    # ── Barrage / Hydroélectrique ─────────────────────────────────────────
+    "Barrage en BCR": [
+        _R("INGCD",  "Ingénieur génie civil",   "LABOR",     "h",   25000),
+        _R("CHEF_CH","Chef de chantier",         "LABOR",     "h",   18000),
+        _R("COND_E", "Conducteur d'engins",      "LABOR",     "h",   10000),
+        _R("BETON",  "Béton BCR (m³)",           "MATERIAL",  "m³",  45000),
+        _R("COFRAGE","Coffrages (m²)",            "MATERIAL",  "m²",   8000),
+        _R("ACIER",  "Acier HA (T)",             "MATERIAL",  "T",  850000),
+        _R("BULL_D9","Bulldozer D9",             "EQUIPMENT", "h",   55000),
+        _R("COMPACT","Compacteur vibrant",        "EQUIPMENT", "h",   35000),
+        _R("CENTRAL","Centrale à béton",          "EQUIPMENT", "h",   40000),
+    ],
+    "Barrage en remblai": [
+        _R("INGCD",  "Ingénieur génie civil",   "LABOR",     "h",   25000),
+        _R("GEOTEC", "Géotechnicien",           "LABOR",     "h",   22000),
+        _R("COND_E", "Conducteur d'engins",     "LABOR",     "h",   10000),
+        _R("REMBLAI","Remblai argileux (m³)",   "MATERIAL",  "m³",   3500),
+        _R("ENROCH", "Enrochements (m³)",       "MATERIAL",  "m³",  12000),
+        _R("BULL_D9","Bulldozer D9",            "EQUIPMENT", "h",   55000),
+        _R("COMPACT","Compacteur vibrant",       "EQUIPMENT", "h",   35000),
+        _R("PELLE",  "Pelle hydraulique 25T",   "EQUIPMENT", "h",   45000),
+    ],
+    "Aménagement hydroélectrique": [
+        _R("INGEL",  "Ingénieur électromécanique","LABOR",    "h",   30000),
+        _R("INGCD",  "Ingénieur génie civil",    "LABOR",    "h",   25000),
+        _R("TURB",   "Groupe turbo-alternateur", "EQUIPMENT","U",  500000000),
+        _R("TRANSFO","Transformateur HTB",       "EQUIPMENT","U",  150000000),
+        _R("BETON",  "Béton armé (m³)",          "MATERIAL", "m³",  65000),
+        _R("COND_F", "Conduite forcée (ml)",     "MATERIAL", "ml",  85000),
+        _R("MONTEUR","Monteur électromécanique", "LABOR",    "h",   15000),
+    ],
+    "Digue de protection": [
+        _R("INGCD",  "Ingénieur génie civil",   "LABOR",     "h",   25000),
+        _R("COND_E", "Conducteur d'engins",     "LABOR",     "h",   10000),
+        _R("REMBLAI","Remblai sélectionné (m³)","MATERIAL",  "m³",   3000),
+        _R("ENROCH", "Enrochements (m³)",       "MATERIAL",  "m³",  12000),
+        _R("GEORAND","Géotextile (m²)",          "MATERIAL",  "m²",   1200),
+        _R("PELLE",  "Pelle hydraulique 25T",   "EQUIPMENT", "h",   45000),
+        _R("COMPACT","Compacteur",               "EQUIPMENT", "h",   35000),
+    ],
+    # ── Routes ───────────────────────────────────────────────────────────
+    "Route bitumée": [
+        _R("INGRTE", "Ingénieur routes",         "LABOR",     "h",   22000),
+        _R("CHEF_CH","Chef de chantier",          "LABOR",     "h",   18000),
+        _R("BETON_B","Béton bitumineux (T)",      "MATERIAL",  "T",   95000),
+        _R("GNT",    "Grave non traitée (m³)",    "MATERIAL",  "m³",  18000),
+        _R("ENDUIT", "Enduit superficiel (m²)",   "MATERIAL",  "m²",   3500),
+        _R("FINISSE","Finisseur",                  "EQUIPMENT", "h",   65000),
+        _R("CYLINDR","Cylindre tandem",            "EQUIPMENT", "h",   35000),
+        _R("BULL_D7","Bulldozer D7",              "EQUIPMENT", "h",   40000),
+    ],
+    "Piste rurale": [
+        _R("INGRTE", "Ingénieur routes",          "LABOR",     "h",   22000),
+        _R("COND_E", "Conducteur d'engins",       "LABOR",     "h",   10000),
+        _R("GNT",    "Grave non traitée (m³)",    "MATERIAL",  "m³",  18000),
+        _R("LATITE", "Latérite (m³)",             "MATERIAL",  "m³",   4000),
+        _R("BULL_D7","Bulldozer D7",              "EQUIPMENT", "h",   40000),
+        _R("NIVELE", "Niveleuse",                  "EQUIPMENT", "h",   45000),
+    ],
+    "Pont": [
+        _R("INGSTR", "Ingénieur structures",      "LABOR",     "h",   28000),
+        _R("CHEF_CH","Chef de chantier",           "LABOR",     "h",   18000),
+        _R("BETON_A","Béton armé (m³)",            "MATERIAL",  "m³",  75000),
+        _R("ACIER",  "Acier HA (T)",              "MATERIAL",  "T",  850000),
+        _R("COFRAGE","Coffrages (m²)",             "MATERIAL",  "m²",   8000),
+        _R("PRECONTR","Câbles précontrainte (T)", "MATERIAL",  "T",  2500000),
+        _R("GRUE",   "Grue mobile 100T",           "EQUIPMENT", "h",   90000),
+    ],
+    # ── Bâtiment ─────────────────────────────────────────────────────────
+    "Bâtiment administratif": [
+        _R("ARCHI",  "Architecte",               "LABOR",     "h",   25000),
+        _R("INGSTR", "Ingénieur structures",     "LABOR",     "h",   22000),
+        _R("MACON",  "Maçon qualifié",           "LABOR",     "h",    8000),
+        _R("BETON_A","Béton armé (m³)",           "MATERIAL",  "m³",  65000),
+        _R("BRIQUE", "Briques (millier)",         "MATERIAL",  "Mil", 150000),
+        _R("CARREL", "Carrelage (m²)",            "MATERIAL",  "m²",  18000),
+    ],
+    "École": [
+        _R("ARCHI",  "Architecte",               "LABOR",     "h",   25000),
+        _R("MACON",  "Maçon qualifié",           "LABOR",     "h",    8000),
+        _R("BETON_A","Béton armé (m³)",           "MATERIAL",  "m³",  65000),
+        _R("BRIQUE", "Briques (millier)",         "MATERIAL",  "Mil", 150000),
+        _R("TOITURE","Toiture (m²)",              "MATERIAL",  "m²",  22000),
+    ],
+    "Hôpital": [
+        _R("ARCHI",  "Architecte",               "LABOR",     "h",   25000),
+        _R("INGSTR", "Ingénieur structures",     "LABOR",     "h",   22000),
+        _R("INGELE", "Ingénieur électricité",    "LABOR",     "h",   20000),
+        _R("BETON_A","Béton armé (m³)",           "MATERIAL",  "m³",  65000),
+        _R("CLIM",   "CVC/Climatisation (U)",    "EQUIPMENT", "U",  2500000),
+        _R("ELECTRO","Équipements électriques",   "MATERIAL",  "U",  500000),
+    ],
+    # ── Énergie ──────────────────────────────────────────────────────────
+    "Centrale solaire": [
+        _R("INGELEC","Ingénieur électrique",     "LABOR",     "h",   25000),
+        _R("PANSOLR","Panneaux solaires (kWc)",  "MATERIAL",  "kWc", 350000),
+        _R("ONDULR", "Onduleurs (kW)",           "EQUIPMENT", "kW",  120000),
+        _R("STRUCT", "Structures de montage",    "MATERIAL",  "kWc",  45000),
+        _R("CABLE",  "Câbles AC/DC (ml)",        "MATERIAL",  "ml",   1800),
+        _R("MONTEUR","Monteur électricien",       "LABOR",     "h",   10000),
+    ],
+    "Ligne HTA/HTB": [
+        _R("INGELEC","Ingénieur électrique",     "LABOR",     "h",   25000),
+        _R("PYLONE", "Pylônes (U)",              "MATERIAL",  "U",  850000),
+        _R("CONDU",  "Conducteurs ACSR (km)",    "MATERIAL",  "km",  4500000),
+        _R("ISOL",   "Isolateurs (U)",           "MATERIAL",  "U",   25000),
+        _R("GRUE",   "Grue de levage",           "EQUIPMENT", "h",   55000),
+        _R("LIGN",   "Lineman/électricien HT",   "LABOR",     "h",   12000),
+    ],
+    # ── Réseaux ──────────────────────────────────────────────────────────
+    "Réseau AEP": [
+        _R("INGHY",  "Ingénieur hydraulique",    "LABOR",     "h",   22000),
+        _R("TUYAUX", "Tuyaux PEHD (ml)",         "MATERIAL",  "ml",  12000),
+        _R("VANNE",  "Vannes (U)",               "MATERIAL",  "U",   85000),
+        _R("CHATEAU","Château d'eau (m³)",        "MATERIAL",  "m³",  450000),
+        _R("POMPE",  "Groupe motopompe",          "EQUIPMENT", "U",  1500000),
+        _R("FOUILLE","Tranchées (ml)",            "EQUIPMENT", "ml",   8000),
+    ],
+    "Réseau d'assainissement": [
+        _R("INGHY",  "Ingénieur hydraulique",    "LABOR",     "h",   22000),
+        _R("TUYAUX", "Tuyaux béton (ml)",        "MATERIAL",  "ml",  18000),
+        _R("REGARD", "Regards de visite (U)",    "MATERIAL",  "U",   250000),
+        _R("STEP",   "Station épuration (U)",    "EQUIPMENT", "U",  50000000),
+        _R("FOUILLE","Tranchées (ml)",           "EQUIPMENT", "ml",   9000),
+    ],
+    # ── Générique (tous les autres types) ────────────────────────────────
+    "_generic": [
+        _R("INGCD",  "Ingénieur principal",     "LABOR",     "h",   22000),
+        _R("CHEF_CH","Chef de chantier",         "LABOR",     "h",   18000),
+        _R("TECHNI", "Technicien",               "LABOR",     "h",   10000),
+        _R("OUVRIER","Ouvrier qualifié",         "LABOR",     "h",    6500),
+        _R("MATERIAU","Matériaux généraux",      "MATERIAL",  "U",    1000),
+        _R("EQUIP",  "Engins/Équipements",       "EQUIPMENT", "h",   35000),
+    ],
+}

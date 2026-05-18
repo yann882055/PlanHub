@@ -659,4 +659,53 @@ class GenerateXERPage(ctk.CTkFrame):
             self._log("✓ Fichier XER généré avec succès !", "ok")
             self._log("=" * 60, "head")
 
-            self.stats_var.se
+            self.stats_var.set(
+                f"WBS : {nb_wbs}  |  Tâches : {nb_tasks_xer}  |  Ressources : {len(resources)}"
+            )
+            self.update_status("XER généré avec succès — prêt au téléchargement")
+
+        except Exception as ex:
+            import traceback
+            self._log(f"❌ Erreur : {ex}", "err")
+            self._log(traceback.format_exc(), "err")
+            messagebox.showerror("Erreur de génération", str(ex))
+
+    def _download_xer(self):
+        if not self._xer_content:
+            messagebox.showwarning("XER non généré", "Veuillez d'abord générer le fichier XER.")
+            return
+
+        proj_name = self.project_state.get("name", "projet").replace(" ", "_")
+        default_name = f"{proj_name}_{datetime.now().strftime('%Y%m%d_%H%M')}.xer"
+
+        path = filedialog.asksaveasfilename(
+            title="Enregistrer le fichier XER",
+            defaultextension=".xer",
+            filetypes=[("Fichiers XER", "*.xer"), ("Tous les fichiers", "*.*")],
+            initialfile=default_name
+        )
+        if not path:
+            return
+
+        try:
+            # Encodage latin-1 obligatoire pour Primavera P6
+            xer_bytes = encode_xer(self._xer_content)
+            with open(path, "wb") as f:
+                f.write(xer_bytes)
+            self._log(f"✓ Fichier téléchargé : {path}", "ok")
+            messagebox.showinfo("Succès", f"Fichier XER enregistré :\n{path}")
+            self.update_status(f"XER téléchargé : {path}")
+        except Exception as ex:
+            messagebox.showerror("Erreur d'enregistrement", str(ex))
+
+    # ------------------------------------------------------------------
+
+    def refresh(self):
+        # Recharger tableau rétro-planning
+        self._reload_retro_table(None)
+        # Mettre à jour paramètres
+        ps = self.project_state
+        if hasattr(self, "_param_vars"):
+            for key, var in self._param_vars.items():
+                var.set(str(ps.get(key, "") or ""))
+        self.update_status("Page Génération XER rechargée")

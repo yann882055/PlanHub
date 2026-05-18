@@ -377,4 +377,17 @@ class MainWindow(ctk.CTk):
     # DÉPLACEMENT FENÊTRE
     # ─────────────────────────────────────────────────────────────────
     def _start_move(self, event):
-    
+        self._move_x = event.x
+        self._move_y = event.y
+
+    def _do_move(self, event):
+        x = self.winfo_x() + event.x - self._move_x
+        y = self.winfo_y() + event.y - self._move_y
+        self.geometry(f"+{x}+{y}")
+
+    def _toggle_maximize(self):
+        """Bascule maximúsé/restauré."""
+        if self.state() == "zoomed":
+            self.state("normal")
+        else:
+            self.state("zoomed")
