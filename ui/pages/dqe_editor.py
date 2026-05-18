@@ -384,13 +384,62 @@ class DQEEditorPage(ctk.CTkFrame):
     # Import / Export Excel
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Détection intelligente du format Excel
+    # ------------------------------------------------------------------
+
+    def _detect_header_row(self, ws):
+        """Trouve la ligne d'en-tête et le mapping colonnes.
+        Retourne (header_row_idx, col_poste, col_desig, col_montant, col_qte, col_pu, col_unite, col_duree, devise)
+        """
+        POSTE_KEYS  = {"POSTE", "N°", "N°", "NO", "CODE", "WBS", "ID", "REF"}
+        DESIG_KEYS  = {"DÉSIGNATION", "DESIGNATION", "LIBELLÉ", "LIBELLE",
+                       "DESCRIPTION", "INTITULÉ", "INTITULE", "NATURE"}
+        MONTANT_KEYS= {"MONTANT", "TOTAL", "PRIX TOTAL", "MONTANT HT", "MONTANT TOTAL",
+                       "PRIX", "AMOUNT"}
+        QTE_KEYS    = {"QUANTITÉ", "QUANTITE", "QTE", "QTÉ"}
+        PU_KEYS     = {"PU HT", "PUHT", "PU", "PRIX UNIT", "PRIX UNITAIRE", "UNIT PRICE"}
+        UNITE_KEYS  = {"UNITÉ", "UNITE", "UNI", "UNIT"}
+        DUREE_KEYS  = {"DURÉE", "DUREE", "DURATION", "DÉLAI", "DELAI"}
+
+        for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=15, values_only=True), 1):
+            headers = [str(v or "").strip().upper().replace("\n", " ") for v in row]
+            # Cherche au moins Désignation + (Poste ou Montant)
+            has_desig  = any(any(k in h for k in DESIG_KEYS)  for h in headers)
+            has_poste  = any(any(k in h for k in POSTE_KEYS)  for h in headers)
+            has_montant= any(any(k in h for k in MONTANT_KEYS) for h in headers)
+            if has_desig and (has_poste or has_montant):
+                def find_col(keys):
+                    for i, h in enumerate(headers):
+                        if any(k in h for k in keys):
+                            return i
+                    return None
+                # Deviner la devise dans les entêtes
+                devise = "FCFA"
+                for h in headers:
+                    if "USD" in h:  devise = "USD"; break
+                    if "EUR" in h:  devise = "EUR"; break
+                    if "XOF" in h:  devise = "XOF"; break
+                return (row_idx,
+                        find_col(POSTE_KEYS), find_col(DESIG_KEYS),
+                        find_col(MONTANT_KEYS), find_col(QTE_KEYS),
+                        find_col(PU_KEYS), find_col(UNITE_KEYS),
+                        find_col(DUREE_KEYS), devise)
+        return None
+
+    def _is_wbs_code(self, code: str) -> bool:
+        """Retourne True si c'est un code WBS numérique (1, 1.1, 2.3.1)."""
+        import re
+        return bool(re.match(r'^\d+(\.\d+)*$', str(code).strip()))
+
     def _import_excel(self):
         if not HAS_OPENPYXL:
-            messagebox.showerror("Module manquant", "openpyxl n'est pas installé.\nInstallez-le avec : pip install openpyxl")
+            messagebox.showerror("Module manquant",
+                "openpyxl n'est pas installé.\nInstallez-le avec : pip install openpyxl")
             return
 
         path = filedialog.askopenfilename(
-            title="Importer un fichier Excel",
+            title="Importer un fichier DQE Excel",
             filetypes=[("Fichiers Excel", "*.xlsx *.xls"), ("Tous", "*.*")]
         )
         if not path:
@@ -398,59 +447,220 @@ class DQEEditorPage(ctk.CTkFrame):
 
         try:
             wb = openpyxl.load_workbook(path, data_only=True)
+
+            # Choisir la feuille
+            sheet_names = wb.sheetnames
             ws = wb.active
+            if len(sheet_names) > 1:
+                # Prendre la première feuille qui ressemble à un DQE
+                for sn in sheet_names:
+                    info = self._detect_header_row(wb[sn])
+                    if info:
+                        ws = wb[sn]
+                        break
 
-            headers = [str(cell.value or "").strip().upper() for cell in ws[1]]
+            info = self._detect_header_row(ws)
 
-            # Mapping automatique des colonnes
-            col_map = {
-                "N°": "activity_id", "WBS": "wbs", "LOT": "lot",
-                "DÉSIGNATION": "designation", "DESIGNATION": "designation",
-                "UNITÉ": "unite", "UNITE": "unite",
-                "QUANTITÉ": "quantite", "QUANTITE": "quantite",
-                "PU HT": "pu_ht", "PUHT": "pu_ht",
-                "MONTANT HT": "montant_ht", "MONTANTHT": "montant_ht",
-                "DURÉE": "duree", "DUREE": "duree",
-                "CALENDRIER": "calendrier", "TYPE": "task_type",
-                "CONTRAINTE": "constraint",
-            }
+            # ── Cas 1 : entête standard détecté ──────────────────────────
+            if info:
+                (hrow, ci_poste, ci_desig, ci_mont,
+                 ci_qte, ci_pu, ci_unite, ci_duree, devise) = info
 
-            new_tasks = []
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if all(v is None for v in row):
-                    continue
-                task = {k: "" for k, _, _, _ in DQE_COLUMNS}
-                for i, header in enumerate(headers):
-                    if i < len(row) and header in col_map:
-                        val = row[i]
-                        task[col_map[header]] = str(val) if val is not None else ""
+                # Mettre à jour la devise si différente
+                if devise != self.currency_var.get():
+                    self.currency_var.set(devise)
+                    self.project_state["currency"] = devise
 
-                # Recalcul montant si absent
-                if not task.get("montant_ht"):
+                new_tasks = []
+                current_lot = ""
+                act_counter = [1]
+
+                def next_id():
+                    while f"A{act_counter[0]:04d}" in \
+                          [t.get("activity_id","") for t in self.project_state.get("dqe_tasks",[])]:
+                        act_counter[0] += 1
+                    aid = f"A{act_counter[0]:04d}"
+                    act_counter[0] += 1
+                    return aid
+
+                for row in ws.iter_rows(min_row=hrow + 1, values_only=True):
+                    if all(v is None for v in row):
+                        continue
+
+                    def cell(idx):
+                        if idx is None or idx >= len(row):
+                            return ""
+                        return row[idx]
+
+                    poste   = str(cell(ci_poste)  or "").strip()
+                    desig   = str(cell(ci_desig)  or "").strip()
+                    montant = cell(ci_mont)
+                    qte     = cell(ci_qte)
+                    pu      = cell(ci_pu)
+                    unite   = str(cell(ci_unite)  or "").strip() or "forfait"
+                    duree   = cell(ci_duree)
+
+                    if not desig and not poste:
+                        continue
+                    # Ignorer les lignes sans code Poste et sans montant (métadonnées/jalons vides)
+                    if not poste and not montant:
+                        continue
+
+                    # Déterminer type
+                    is_wbs = self._is_wbs_code(poste) if poste else False
+                    task_type = "TT_WBS" if is_wbs else "TT_Task"
+
+                    # Gérer le lot courant
+                    if is_wbs:
+                        current_lot = poste
+
+                    # Montant
                     try:
-                        q = float(task.get("quantite", 0) or 0)
-                        p = float(task.get("pu_ht", 0) or 0)
-                        task["montant_ht"] = str(round(q * p, 2))
-                    except ValueError:
-                        task["montant_ht"] = "0"
+                        mont_val = round(float(str(montant).replace(" ", "").replace(",", ".") or 0), 2)
+                    except Exception:
+                        mont_val = 0.0
 
-                if not task.get("activity_id"):
-                    task["activity_id"] = self._next_activity_id()
-                new_tasks.append(task)
+                    # PU / Quantité
+                    try:
+                        qte_val = float(str(qte).replace(" ", "").replace(",", ".") or 1)
+                    except Exception:
+                        qte_val = 1.0
+                    try:
+                        pu_val = float(str(pu).replace(" ", "").replace(",", ".") or 0)
+                    except Exception:
+                        pu_val = 0.0
 
+                    # Si montant absent mais PU et QTE présents
+                    if mont_val == 0 and pu_val and qte_val:
+                        mont_val = round(pu_val * qte_val, 2)
+
+                    # Durée
+                    try:
+                        duree_val = int(float(str(duree or "").replace(",", ".") or 1))
+                    except Exception:
+                        duree_val = 1
+
+                    # Activity ID
+                    if poste and not is_wbs:
+                        activity_id = poste          # Ex: A100, A101
+                    elif poste and is_wbs:
+                        activity_id = f"WBS_{poste.replace('.','_')}"
+                    else:
+                        activity_id = next_id()
+
+                    task = {
+                        "activity_id": activity_id,
+                        "wbs":         poste or current_lot,
+                        "lot":         current_lot if not is_wbs else "",
+                        "designation": desig,
+                        "unite":       unite if unite in UNITES else "forfait",
+                        "quantite":    str(qte_val) if qte_val != 1.0 else "1",
+                        "pu_ht":       str(pu_val) if pu_val else "",
+                        "montant_ht":  str(mont_val) if mont_val else "",
+                        "duree":       str(duree_val) if not is_wbs else "",
+                        "calendrier":  "Cal_5j",
+                        "task_type":   task_type,
+                        "constraint":  "CS_ALAP",
+                    }
+                    new_tasks.append(task)
+
+            # ── Cas 2 : format libre — 2-3 colonnes sans entête reconnu ──
+            else:
+                new_tasks = []
+                current_lot = ""
+                act_counter = [1]
+
+                def next_id2():
+                    aid = f"A{act_counter[0]:04d}"
+                    act_counter[0] += 1
+                    return aid
+
+                # Chercher la première ligne avec données utiles (≥ 2 cellules non vides)
+                data_start = 1
+                for ri, row in enumerate(ws.iter_rows(min_row=1, max_row=20, values_only=True), 1):
+                    non_empty = [v for v in row if v is not None]
+                    if len(non_empty) >= 2 and any(
+                            isinstance(non_empty[0], str) and non_empty[0].strip()):
+                        data_start = ri
+                        break
+
+                devise = "FCFA"
+                for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):
+                    for v in row:
+                        sv = str(v or "").upper()
+                        if "USD" in sv: devise = "USD"; break
+                        if "EUR" in sv: devise = "EUR"; break
+
+                if devise != self.currency_var.get():
+                    self.currency_var.set(devise)
+                    self.project_state["currency"] = devise
+
+                for row in ws.iter_rows(min_row=data_start, values_only=True):
+                    vals = list(row)
+                    if all(v is None for v in vals):
+                        continue
+
+                    # Col 0 = Poste, Col 1 = Désignation, Col 2 = Montant
+                    poste   = str(vals[0] or "").strip() if len(vals) > 0 else ""
+                    desig   = str(vals[1] or "").strip() if len(vals) > 1 else ""
+                    montant = vals[2] if len(vals) > 2 else None
+
+                    if not desig:
+                        continue
+
+                    is_wbs = self._is_wbs_code(poste) if poste else False
+                    if is_wbs:
+                        current_lot = poste
+
+                    try:
+                        mont_val = round(float(str(montant or "").replace(" ","").replace(",",".")), 2)
+                    except Exception:
+                        mont_val = 0.0
+
+                    if poste and not is_wbs:
+                        activity_id = poste
+                    elif poste and is_wbs:
+                        activity_id = f"WBS_{poste.replace('.','_')}"
+                    else:
+                        activity_id = next_id2()
+
+                    task = {
+                        "activity_id": activity_id,
+                        "wbs":         poste or current_lot,
+                        "lot":         current_lot if not is_wbs else "",
+                        "designation": desig,
+                        "unite":       "forfait",
+                        "quantite":    "1",
+                        "pu_ht":       "",
+                        "montant_ht":  str(mont_val) if mont_val else "",
+                        "duree":       "1" if not is_wbs else "",
+                        "calendrier":  "Cal_5j",
+                        "task_type":   "TT_WBS" if is_wbs else "TT_Task",
+                        "constraint":  "CS_ALAP",
+                    }
+                    new_tasks.append(task)
+
+            # ── Intégration dans le projet ────────────────────────────────
             if new_tasks:
-                if messagebox.askyesno("Import", f"{len(new_tasks)} lignes trouvées.\nRemplacer le DQE existant ou Ajouter ?",
-                                       icon="question"):
+                n = len(new_tasks)
+                rep = messagebox.askyesno(
+                    "Import DQE",
+                    f"{n} lignes importées ({devise}).\n\n"
+                    "Cliquez OUI pour remplacer le DQE existant.\n"
+                    "Cliquez NON pour ajouter à la suite.",
+                    icon="question"
+                )
+                if rep:
                     self.project_state["dqe_tasks"] = new_tasks
                 else:
                     self.project_state.setdefault("dqe_tasks", []).extend(new_tasks)
                 self._reload_table()
-                self.update_status(f"Import Excel : {len(new_tasks)} tâche(s) importée(s)")
+                self.update_status(f"Import Excel : {n} ligne(s) importée(s) — {devise}")
             else:
                 messagebox.showinfo("Import", "Aucune donnée trouvée dans le fichier.")
 
         except Exception as ex:
-            messagebox.showerror("Erreur import", str(ex))
+            messagebox.showerror("Erreur import", f"Impossible d'importer le fichier :\n{ex}")
 
     def _export_excel(self):
         if not HAS_OPENPYXL:
