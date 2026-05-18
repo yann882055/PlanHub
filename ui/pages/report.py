@@ -76,20 +76,33 @@ COL_WIDTHS = {
 
 
 def _parse_xer(filepath: str):
-    """Parse un XER et retourne (parser, rows) ou (None, []) si erreur."""
+    """Parse un XER — retourne (parser, rows, error_msg)."""
     try:
         from core.xer_parser import XERParser
-        p = XERParser()
+        p  = XERParser()
         ok = p.parse_file(filepath)
+
         if not ok and p.errors:
-            return None, []
-        tasks = p.get_tasks()
+            return None, [], "\n".join(p.errors)
+
+        tasks    = p.get_tasks()
         wbs_dict = p.build_wbs_dict()
         pred_dict = p.get_task_predecessors()
+
+        # Diagnostic : si aucune tâche trouvée, lister les tables présentes
+        if not tasks:
+            tables_found = list(p.tables.keys())
+            detail = (f"Tables trouvées : {', '.join(tables_found) or 'aucune'}\n"
+                      f"Le fichier ne contient pas de table TASK — "
+                      f"vérifiez que c'est un planning P6 (pas une baseline vide).")
+            return None, [], detail
+
         rows = p.get_p6_columns(tasks, wbs_dict, pred_dict)
-        return p, rows
+        return p, rows, ""
+
     except Exception as e:
-        return None, []
+        import traceback
+        return None, [], f"{e}\n\n{traceback.format_exc()}"
 
 
 class ReportPage(ctk.CTkFrame):
@@ -282,11 +295,11 @@ class ReportPage(ctk.CTkFrame):
             filetypes=[("Fichiers XER", "*.xer"), ("Tous", "*.*")])
         if not fp:
             return
-        p, rows = _parse_xer(fp)
+        p, rows, err = _parse_xer(fp)
         if p is None or not rows:
-            messagebox.showerror("Erreur",
-                                  f"Impossible de lire le fichier XER.\n{fp}\n\n"
-                                  "Vérifiez que le fichier est un XER Primavera P6 valide.")
+            detail = f"\n\nDétail : {err}" if err else ""
+            messagebox.showerror("Erreur lecture XER",
+                                  f"Impossible de lire le fichier XER.\n{fp}{detail}")
             return
         self._parser = p
         self._all_rows = rows
@@ -613,9 +626,10 @@ class ReportPage(ctk.CTkFrame):
             filetypes=[("Fichiers XER", "*.xer"), ("Tous", "*.*")])
         if not fp:
             return
-        p, rows = _parse_xer(fp)
+        p, rows, err = _parse_xer(fp)
         if p is None:
-            messagebox.showerror("Erreur", "Impossible de lire le fichier XER courant.")
+            detail = f"\n\nDétail : {err}" if err else ""
+            messagebox.showerror("Erreur", f"Impossible de lire le fichier XER courant.{detail}")
             return
         self._parser_cur = p
         self._rows_cur = rows
@@ -630,9 +644,10 @@ class ReportPage(ctk.CTkFrame):
             filetypes=[("Fichiers XER", "*.xer"), ("Tous", "*.*")])
         if not fp:
             return
-        p, rows = _parse_xer(fp)
+        p, rows, err = _parse_xer(fp)
         if p is None:
-            messagebox.showerror("Erreur", "Impossible de lire le fichier XER baseline.")
+            detail = f"\n\nDétail : {err}" if err else ""
+            messagebox.showerror("Erreur", f"Impossible de lire le fichier XER baseline.{detail}")
             return
         self._parser_bl = p
         self._rows_bl = rows

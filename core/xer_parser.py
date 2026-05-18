@@ -8,6 +8,22 @@ import datetime
 from typing import Dict, List, Any, Optional, Tuple
 
 
+def _safe_int(val, default=0):
+    """Convertit un champ XER numérique (peut être '8.0', '16.0', '') en int."""
+    try:
+        return int(float(val or 0))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(val, default=0.0):
+    """Convertit un champ XER en float."""
+    try:
+        return float(val or 0)
+    except (ValueError, TypeError):
+        return default
+
+
 class XERParser:
     """Parse un fichier XER et retourne les tables sous forme de dicts."""
 
@@ -175,11 +191,9 @@ class XERParser:
         rsrc = self.get_resources()
         task_rsrc = self.get_task_resources()
 
-        total_cost = sum(
-            float(t.get("target_cost", 0) or 0) for t in task_rsrc
-        )
+        total_cost = sum(_safe_float(t.get("target_cost", 0)) for t in task_rsrc)
         total_duration = max(
-            (int(t.get("target_drtn_hr_cnt", 0) or 0) for t in tasks), default=0
+            (_safe_int(t.get("target_drtn_hr_cnt", 0)) for t in tasks), default=0
         ) / 8
 
         return {
@@ -195,50 +209,58 @@ class XERParser:
         """
         Prépare les données pour affichage style P6.
         Retourne une liste de dicts avec toutes les colonnes P6.
+        Note: les champs XER sont des chaînes (ex: "8.0") — on utilise _safe_int/_safe_float.
         """
         result = []
         for task in tasks:
-            tid = task.get("task_id", "")
+            tid    = task.get("task_id", "")
             wbs_id = task.get("wbs_id", "")
-            wbs = wbs_dict.get(wbs_id, {})
+            wbs    = wbs_dict.get(wbs_id, {})
             task_preds = pred_dict.get(tid, [])
 
             pred_str = ", ".join(
                 f"{p.get('pred_task_id','')} {p.get('pred_type','').replace('PR_','')}"
-                f"{('+' + str(int(p.get('lag_hr_cnt',0))//8) + 'd') if int(p.get('lag_hr_cnt',0) or 0) > 0 else ''}"
+                f"{('+' + str(_safe_int(p.get('lag_hr_cnt', 0)) // 8) + 'd') if _safe_int(p.get('lag_hr_cnt', 0)) > 0 else ''}"
                 for p in task_preds
             )
 
-            dur = int(task.get("target_drtn_hr_cnt", 0) or 0) // 8
+            dur           = _safe_int(task.get("target_drtn_hr_cnt", 0)) // 8
+            remain_dur    = _safe_int(task.get("remain_drtn_hr_cnt", 0)) // 8
+            act_dur       = _safe_int(task.get("act_drtn_hr_cnt", 0)) // 8
+            total_float   = _safe_int(task.get("total_float_hr_cnt", 0)) // 8
+            free_float    = _safe_int(task.get("free_float_hr_cnt", 0)) // 8
+            # Criticité : marge totale = 0
+            tf_raw        = _safe_int(task.get("total_float_hr_cnt", 9999))
+            is_critical   = (tf_raw == 0)
 
             row = {
-                "activity_id": task.get("task_code", ""),
-                "wbs_code": wbs.get("wbs_short_name", ""),
-                "wbs_name": wbs.get("wbs_name", ""),
+                "activity_id":  task.get("task_code", ""),
+                "wbs_code":     wbs.get("wbs_short_name", ""),
+                "wbs_name":     wbs.get("wbs_name", ""),
                 "activity_name": task.get("task_name", ""),
-                "orig_dur": dur,
-                "remain_dur": int(task.get("remain_drtn_hr_cnt", 0) or 0) // 8,
-                "act_dur": int(task.get("act_drtn_hr_cnt", 0) or 0) // 8,
-                "start": task.get("target_start_date", ""),
-                "finish": task.get("target_end_date", ""),
-                "early_start": task.get("early_start_date", ""),
+                "orig_dur":     dur,
+                "remain_dur":   remain_dur,
+                "act_dur":      act_dur,
+                "start":        task.get("target_start_date", ""),
+                "finish":       task.get("target_end_date", ""),
+                "early_start":  task.get("early_start_date", ""),
                 "early_finish": task.get("early_end_date", ""),
-                "late_start": task.get("late_start_date", ""),
-                "late_finish": task.get("late_end_date", ""),
-                "total_float": int(task.get("total_float_hr_cnt", 0) or 0) // 8,
-                "free_float": int(task.get("free_float_hr_cnt", 0) or 0) // 8,
-                "budgeted_cost": task.get("target_cost", "0"),
-                "actual_cost": task.get("act_total_cost", "0"),
-                "remain_cost": task.get("remain_total_cost", "0"),
-                "pct_complete": task.get("phys_complete_pct", "0"),
-                "cstr_type": task.get("cstr_type", ""),
-                "cstr_date": task.get("cstr_date", ""),
-                "status": task.get("status_code", ""),
-                "task_type": task.get("task_type", ""),
+                "late_start":   task.get("late_start_date", ""),
+                "late_finish":  task.get("late_end_date", ""),
+                "total_float":  total_float,
+                "free_float":   free_float,
+                "budgeted_cost": _safe_float(task.get("target_cost", 0)),
+                "actual_cost":   _safe_float(task.get("act_total_cost", 0)),
+                "remain_cost":   _safe_float(task.get("remain_total_cost", 0)),
+                "pct_complete":  _safe_float(task.get("phys_complete_pct", 0)),
+                "cstr_type":    task.get("cstr_type", ""),
+                "cstr_date":    task.get("cstr_date", ""),
+                "status":       task.get("status_code", ""),
+                "task_type":    task.get("task_type", ""),
                 "predecessors": pred_str,
-                "project_id": task.get("proj_id", ""),
-                "_task_id": tid,
-                "_is_critical": int(task.get("total_float_hr_cnt", 999) or 999) == 0,
+                "project_id":   task.get("proj_id", ""),
+                "_task_id":     tid,
+                "_is_critical": is_critical,
                 "_is_milestone": task.get("task_type") == "TT_Mile",
             }
             result.append(row)
